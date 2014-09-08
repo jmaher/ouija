@@ -211,6 +211,79 @@ def run_results_day_flot_query():
     db.close()
     return data_platforms
 
+@app.route('/revisions_with_failures')
+@json_response
+def revisions_with_failures():
+    #TODO: make these defaults better defined
+    qd = request.args
+    platform = qd.get('platform', 'winxp')
+    buildtype = qd.get('buildtype', 'debug')
+    testtype = qd.get('testtype', 'mochitest-1')
+
+    db = create_db_connnection()
+    cursor = db.cursor()
+    cursor.execute("""select distinct revision from testjobs
+                      where platform="%s" 
+                      and buildtype="%s" 
+                      and testtype="%s" 
+                      and result='testfailed' 
+                      and bugid!='' 
+                      and bugid not like 'Bug%%' 
+                      and bugid not like '%%lobber%%';""" % (platform, buildtype, testtype))
+
+    query_results = cursor.fetchall()
+    cursor.close()
+    db.close()
+
+    if not query_results:
+        return {}
+
+    return {'revlist': query_results}
+
+@app.route('/unique_fields')
+@json_response
+def unique_fields():
+    db = create_db_connnection()
+    cursor = db.cursor()
+
+    cursor.execute("select distinct testtype from testjobs;")
+    testtypes = cursor.fetchall()
+    cursor.execute("select distinct platform from testjobs;")
+    platforms = cursor.fetchall()
+    cursor.execute("select distinct buildtype from testjobs;")
+    buildtypes = cursor.fetchall()
+
+    cursor.close()
+    db.close()
+
+    return {'platforms': platforms, 'buildtypes': buildtypes, 'testtypes': testtypes}
+
+@app.route('/failures_for_revision')
+@json_response
+def failures_for_revision():
+    #TODO: make these defaults better defined
+    qd = request.args
+    revision = qd.get('revision', '')
+
+    if not revision:
+        return {}
+
+    db = create_db_connnection()
+    cursor = db.cursor()
+    sql = """select platform,buildtype,testtype from testjobs 
+                    where revision='%s' 
+                    and result='testfailed' 
+                    and bugid!='' and bugid not like 'Bug%%' and bugid not like '%%lobber%%';""" % (revision)
+
+    cursor.execute(sql)
+    query_results = cursor.fetchall()
+    cursor.close()
+    db.close()
+
+    if not query_results:
+        return {}
+
+    return {'failures': query_results}
 
 @app.route("/data/slaves/")
 @json_response
